@@ -27,6 +27,8 @@ def phonemize_with_espeak(word: str, language: str) -> str:
         ["espeak-ng", "-q", "--ipa", "-v", language, word],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=True,
     )
     return result.stdout.strip()
