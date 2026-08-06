@@ -11,11 +11,16 @@ option(PHONEMIZE_ENABLE_ONNX "Enable the ONNX neural G2P fallback layer" OFF)
 
 add_library(phonemize
   src/phonemize.cc
+  src/lexicon_pack.cc
 )
 target_include_directories(phonemize PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
+
+add_executable(phonemize-pack src/pack_main.cc)
+target_link_libraries(phonemize-pack PRIVATE phonemize)
+target_include_directories(phonemize-pack PRIVATE src)
 
 if(PHONEMIZE_ENABLE_ONNX)
   find_package(onnxruntime REQUIRED)
@@ -30,5 +35,21 @@ if(PHONEMIZE_BUILD_TESTS)
   enable_testing()
   add_executable(phonemize_smoke_test tests/smoke_test.cc)
   target_link_libraries(phonemize_smoke_test PRIVATE phonemize)
+  target_include_directories(phonemize_smoke_test PRIVATE src)
   add_test(NAME smoke COMMAND phonemize_smoke_test)
+
+  add_executable(phonemize_golden_test tests/golden_test.cc)
+  target_link_libraries(phonemize_golden_test PRIVATE phonemize)
+  target_include_directories(phonemize_golden_test PRIVATE src)
+
+  # Regression floor against the espeak-ng oracle fixtures. Exact-match is a
+  # deliberately strict proxy: the residual gap is dominated by espeak's own
+  # dictionary choices diverging from CMUdict pronunciations, not by
+  # notation. Raise the floor as calibration improves; never lower it.
+  if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/golden/en-us.tsv
+     AND EXISTS ${CMAKE_CURRENT_BINARY_DIR}/data/en-us.lpk)
+    add_test(NAME golden-en-us
+      COMMAND phonemize_golden_test ${CMAKE_CURRENT_BINARY_DIR}/data en-us
+              ${CMAKE_CURRENT_SOURCE_DIR}/tests/golden/en-us.tsv 40)
+  endif()
 endif()

@@ -1,8 +1,11 @@
-// libphonemize core — M0 scaffold.
+// libphonemize core — M1: lexicon-backed pipeline.
 //
-// This file establishes the C ABI and ownership rules so bindings and the
-// sherpa-onnx integration can be written against a stable surface while the
-// lexicon/rule/neural layers land (see docs/DESIGN.md milestones).
+// phonemize_text runs: token split → lowercase → lexicon lookup, joining
+// word phonemizations with single spaces (espeak's inter-word convention).
+// Unresolved tokens keep the request honest: the call reports
+// PHONEMIZE_PARTIAL rather than fabricating phonemes (SPEC:
+// refuse-don't-fabricate). Rules and neural layers slot in behind the same
+// per-token resolution point in later milestones.
 
 #include "phonemize.h"
 
@@ -10,6 +13,9 @@
 #include <cstring>
 #include <memory>
 #include <string>
+#include <vector>
+
+#include "lexicon_pack.h"
 
 namespace {
 
@@ -17,6 +23,7 @@ struct ContextImpl {
   std::string data_dir;
   std::string language;
   uint32_t layers = PHONEMIZE_LAYERS_ALL;
+  libphonemize::LexiconPack lexicon;
 };
 
 phonemize_status set_status(phonemize_status* out, phonemize_status value) {
@@ -24,6 +31,44 @@ phonemize_status set_status(phonemize_status* out, phonemize_status value) {
     *out = value;
   }
   return value;
+}
+
+// ASCII lowercase; non-ASCII UTF-8 bytes pass through untouched. Lexicon
+// packs store words in the same normalization, applied by the pack builder.
+std::string AsciiLower(std::string_view input) {
+  std::string out;
+  out.reserve(input.size());
+  for (char c : input) {
+    out.push_back(c >= 'A' && c <= 'Z' ? static_cast<char>(c - 'A' + 'a') : c);
+  }
+  return out;
+}
+
+bool IsWordByte(unsigned char c) {
+  // Letters, digits, apostrophes (don't, o'clock), and every non-ASCII byte
+  // (UTF-8 continuation or lead — accented letters, Cyrillic, etc.).
+  return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+         (c >= '0' && c <= '9') || c == '\'' || c >= 0x80;
+}
+
+std::vector<std::string> Tokenize(std::string_view text) {
+  std::vector<std::string> tokens;
+  size_t index = 0;
+  while (index < text.size()) {
+    while (index < text.size() &&
+           !IsWordByte(static_cast<unsigned char>(text[index]))) {
+      ++index;
+    }
+    const size_t start = index;
+    while (index < text.size() &&
+           IsWordByte(static_cast<unsigned char>(text[index]))) {
+      ++index;
+    }
+    if (index > start) {
+      tokens.emplace_back(text.substr(start, index - start));
+    }
+  }
+  return tokens;
 }
 
 }  // namespace
@@ -44,12 +89,19 @@ phonemize_context* phonemize_create(const phonemize_config* config,
 
   auto context = std::make_unique<phonemize_context>();
   context->impl.data_dir = config->data_dir;
-  context->impl.language = config->language;
+  context->impl.language = AsciiLower(config->language);
   context->impl.layers =
       config->layers == 0 ? PHONEMIZE_LAYERS_ALL : config->layers;
 
-  // M1 loads the language pack here and fails with
-  // PHONEMIZE_ERROR_LANGUAGE_UNAVAILABLE / DATA_LOAD_FAILED as appropriate.
+  if (context->impl.layers & PHONEMIZE_LAYER_LEXICON) {
+    const std::string pack_path =
+        context->impl.data_dir + "/" + context->impl.language + ".lpk";
+    if (!context->impl.lexicon.Load(pack_path)) {
+      set_status(status, PHONEMIZE_ERROR_LANGUAGE_UNAVAILABLE);
+      return nullptr;
+    }
+  }
+
   set_status(status, PHONEMIZE_OK);
   return context.release();
 }
@@ -64,12 +116,35 @@ phonemize_status phonemize_text(phonemize_context* context,
   if (context == nullptr || utf8_text == nullptr || result == nullptr) {
     return PHONEMIZE_ERROR_INVALID_ARGUMENT;
   }
-
-  // M1 replaces this with normalization → lexicon → rules → neural G2P.
-  // The scaffold intentionally refuses rather than echoing input: silent
-  // wrong output would poison downstream TTS quality checks.
   *result = nullptr;
-  return PHONEMIZE_ERROR_LANGUAGE_UNAVAILABLE;
+
+  const std::vector<std::string> tokens = Tokenize(utf8_text);
+  std::string output;
+  bool unresolved = false;
+
+  for (const std::string& token : tokens) {
+    const char* ipa = nullptr;
+    if (context->impl.layers & PHONEMIZE_LAYER_LEXICON) {
+      ipa = context->impl.lexicon.Find(AsciiLower(token));
+    }
+    // Rule and neural layers resolve here in M3/M2 respectively.
+    if (ipa == nullptr) {
+      unresolved = true;
+      continue;
+    }
+    if (!output.empty()) {
+      output.push_back(' ');
+    }
+    output.append(ipa);
+  }
+
+  char* buffer = static_cast<char*>(std::malloc(output.size() + 1));
+  if (buffer == nullptr) {
+    return PHONEMIZE_ERROR_OUT_OF_MEMORY;
+  }
+  std::memcpy(buffer, output.c_str(), output.size() + 1);
+  *result = buffer;
+  return unresolved ? PHONEMIZE_PARTIAL : PHONEMIZE_OK;
 }
 
 void phonemize_free_string(char* value) {

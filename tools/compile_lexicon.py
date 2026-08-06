@@ -44,15 +44,11 @@ def load_mapping(path: Path) -> dict[str, str]:
 def convert_pronunciation(phones: list[str], mapping: dict[str, str]) -> str:
     """ARPABET phones (with stress digits) → espeak-style IPA string.
 
-    Stress placement: espeak puts ˈ/ˌ before the syllable. Without full
-    syllabification we use the standard approximation of placing the mark
-    before the onset consonant cluster preceding the stressed vowel; golden
-    fixtures calibrate the residual differences.
+    Calibrated against espeak-ng en-us golden fixtures. Espeak's observed
+    conventions: the stress mark sits immediately before the stressed VOWEL
+    (bˈaʊt, ɐkwˈɪts), not before the syllable onset.
     """
-    ipa_parts: list[str] = []
-    stress_insert_at: list[tuple[int, str]] = []
-
-    syllable_onset_index = 0
+    tokens: list[tuple[str, str]] = []  # (ipa, stress) per phone
     for phone in phones:
         stress = ""
         bare = phone
@@ -65,20 +61,63 @@ def convert_pronunciation(phones: list[str], mapping: dict[str, str]) -> str:
                 stress = SECONDARY_STRESS
         if bare not in mapping:
             raise KeyError(bare)
-        is_vowel = bare in VOWELS
-        if is_vowel and stress:
-            stress_insert_at.append((syllable_onset_index, stress))
-        ipa_parts.append(mapping[bare])
-        if is_vowel:
-            # Next consonant run belongs to the following syllable's onset.
-            syllable_onset_index = len(ipa_parts)
-        elif len(ipa_parts) - syllable_onset_index > 1:
-            # Keep at most one consonant in the onset approximation.
-            syllable_onset_index = len(ipa_parts) - 1
+        tokens.append((mapping[bare], stress, bare))  # type: ignore[arg-type]
 
-    for index, mark in reversed(stress_insert_at):
-        ipa_parts.insert(index, mark)
-    return "".join(ipa_parts)
+    return apply_espeak_en_conventions(tokens)
+
+
+def apply_espeak_en_conventions(tokens: list) -> str:
+    """Espeak-ng en-us output conventions, learned from golden fixtures:
+
+    - stress marks precede the stressed vowel itself;
+    - word-initial unstressed ə is written ɐ;
+    - word-final unstressed iː is written i;
+    - the unstressed -ɪd/-ɪz inflection vowel is written ᵻ;
+    - intervocalic t before an unstressed vowel flaps to ɾ.
+    """
+    result: list[str] = []
+    for index, (ipa, stress, bare) in enumerate(tokens):
+        is_vowel = bare in VOWELS
+        previous_bare = tokens[index - 1][2] if index > 0 else None
+        next_entry = tokens[index + 1] if index + 1 < len(tokens) else None
+
+        if is_vowel:
+            if ipa in {"ə", "æ"} and not stress and index == 0:
+                ipa = "ɐ"
+            if ipa == "ɚ" and stress:
+                ipa = "ɜː"
+            if ipa == "iː" and not stress and (
+                index == len(tokens) - 1
+                or (
+                    index == len(tokens) - 2
+                    and tokens[index + 1][2] in {"Z", "S"}
+                )
+            ):
+                ipa = "i"
+            # Unstressed ɪ in a final -ɪd / -ɪz / -ᵻst inflection.
+            if (
+                ipa == "ɪ"
+                and not stress
+                and next_entry is not None
+                and index + 2 == len(tokens)
+                and next_entry[2] in {"D", "Z", "S"}
+            ):
+                ipa = "ᵻ"
+            result.append(stress + ipa)
+            continue
+
+        # Flap: t between a vowel and an unstressed vowel.
+        if (
+            bare == "T"
+            and previous_bare in VOWELS
+            and next_entry is not None
+            and next_entry[2] in VOWELS
+            and not next_entry[1]
+        ):
+            ipa = "ɾ"
+        result.append(ipa)
+
+    return "".join(result)
 
 
 VOWELS = {

@@ -31,6 +31,10 @@ typedef enum phonemize_status {
   PHONEMIZE_ERROR_MODEL_LOAD_FAILED = 4,
   PHONEMIZE_ERROR_OUT_OF_MEMORY = 5,
   PHONEMIZE_ERROR_INTERNAL = 6,
+  /* Result is valid but one or more tokens could not be resolved by the
+   * enabled layers; unresolved tokens are omitted from the output rather
+   * than guessed. */
+  PHONEMIZE_PARTIAL = 7,
 } phonemize_status;
 
 /* Which layers may answer. The default (ALL) mirrors production behavior;
