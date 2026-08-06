@@ -1,0 +1,2 @@
+/Users/tobias.winkler/Projects/libphonemize/build-ios/simulator/install/lib/libphonemize.a
+/Users/tobias.winkler/Projects/libphonemize/build-ios/simulator/install/include/phonemize.h

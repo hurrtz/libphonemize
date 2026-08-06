@@ -1,0 +1,2 @@
+/Users/tobias.winkler/Projects/libphonemize/build-android/armeabi-v7a/install/lib/libphonemize.a
+/Users/tobias.winkler/Projects/libphonemize/build-android/armeabi-v7a/install/include/phonemize.h

@@ -1,0 +1,2 @@
+/Users/tobias.winkler/Projects/libphonemize/build-android/arm64-v8a/install/lib/libphonemize.a
+/Users/tobias.winkler/Projects/libphonemize/build-android/arm64-v8a/install/include/phonemize.h

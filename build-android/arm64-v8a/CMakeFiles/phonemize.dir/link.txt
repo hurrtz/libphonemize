@@ -1,0 +1,2 @@
+/Users/tobias.winkler/Library/Android/sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar qc libphonemize.a CMakeFiles/phonemize.dir/src/phonemize.cc.o CMakeFiles/phonemize.dir/src/lexicon_pack.cc.o CMakeFiles/phonemize.dir/src/neural_g2p.cc.o
+/Users/tobias.winkler/Library/Android/sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ranlib libphonemize.a

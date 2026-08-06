@@ -1,0 +1,2 @@
+/Users/tobias.winkler/Projects/libphonemize/build-android/x86/install/lib/libphonemize.a
+/Users/tobias.winkler/Projects/libphonemize/build-android/x86/install/include/phonemize.h

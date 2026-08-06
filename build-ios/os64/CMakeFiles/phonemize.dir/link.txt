@@ -1,0 +1,2 @@
+/usr/bin/ar qc libphonemize.a CMakeFiles/phonemize.dir/src/phonemize.cc.o CMakeFiles/phonemize.dir/src/lexicon_pack.cc.o CMakeFiles/phonemize.dir/src/neural_g2p.cc.o
+/usr/bin/ranlib libphonemize.a

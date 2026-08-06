@@ -1,0 +1,8 @@
+/Users/tobias.winkler/Projects/libphonemize/build-android/arm64-v8a/CMakeFiles/phonemize.dir
+/Users/tobias.winkler/Projects/libphonemize/build-android/arm64-v8a/CMakeFiles/phonemize-pack.dir
+/Users/tobias.winkler/Projects/libphonemize/build-android/arm64-v8a/CMakeFiles/edit_cache.dir
+/Users/tobias.winkler/Projects/libphonemize/build-android/arm64-v8a/CMakeFiles/rebuild_cache.dir
+/Users/tobias.winkler/Projects/libphonemize/build-android/arm64-v8a/CMakeFiles/list_install_components.dir
+/Users/tobias.winkler/Projects/libphonemize/build-android/arm64-v8a/CMakeFiles/install.dir
+/Users/tobias.winkler/Projects/libphonemize/build-android/arm64-v8a/CMakeFiles/install/local.dir
+/Users/tobias.winkler/Projects/libphonemize/build-android/arm64-v8a/CMakeFiles/install/strip.dir
