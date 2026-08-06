@@ -43,14 +43,24 @@ Compatibility is enforced by golden-fixture tests per language, not by intent.
 
 ## Language roadmap
 
-| Language | Strategy | Status |
-| --- | --- | --- |
-| English (en-US, en-GB) | lexicon (CMUdict) + neural OOV fallback | in progress |
-| Spanish, Italian | rules + small exception lexicon | planned |
-| German | rules + compound splitting + loanword lexicon | planned |
-| French | rules (liaison) + lexicon | planned |
-| Portuguese | rules + lexicon | planned |
-| Russian | lexicon with stress + reduction rules | planned |
+Every shipped language has a lexicon pack and a neural G2P fallback.
+Two accuracy numbers matter and measure different things: **oracle exact**
+is whole-word agreement with eSpeak NG over held-out fixtures (strict — one
+differing character fails the word, and much of the residual is eSpeak
+disagreeing with the dictionaries), while **G2P dev exact** is the neural
+model reproducing its own lexicon on held-out words, i.e. how well
+out-of-vocabulary names and brands are handled.
+
+| Language | Lexicon source | Entries | Oracle exact | G2P dev exact |
+| --- | --- | ---: | ---: | ---: |
+| Spanish | ipa-dict | 595,896 | 70.4% | 97.8% |
+| English (en-US) | CMUdict | 126,052 | 43.1% | 44.4% |
+| French | ipa-dict + WikiPron | 275,005 | 42.1% | 88.6% |
+| Russian | openrussian (rule G2P) | 535,920 | 39.6% | 74.2% |
+| German | ipa-dict + WikiPron | 706,730 | 27.6% | 67.3% |
+| Italian | WikiPron | 81,441 | 23.2% | 77.2% |
+| Portuguese (pt-PT) | WikiPron | 56,305 | 15.2% | 64.1% |
+| Portuguese (pt-BR) | WikiPron | 57,211 | 15.0% | 81.8% |
 
 ## Layout
 
