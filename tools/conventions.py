@@ -68,6 +68,10 @@ def convert_de(word: str, ipa: str) -> str:
         ipa = ipa.replace(dropped, "")
     ipa = move_stress_before_vowel(ipa, VOWEL_CHARS["de"])
     ipa = ensure_stressed(ipa, VOWEL_CHARS["de"])
+
+    # Note: espeak's German secondary stress follows its own compound
+    # analysis; a blanket leading-ˌ rule measured worse (27.6% -> 19.6%) and
+    # is deliberately not applied.
     return ipa
 
 
@@ -182,7 +186,9 @@ def convert_fr(word: str, ipa: str) -> str:
     return ipa
 
 
-IT_GEMINABLE = set("bdfɡklmnprstvʃtʒdʣʦʧʤzɲʎ")
+# espeak writes geminate stops, nasals, and liquids with a length mark
+# but keeps double s as "ss" and reduces double ʃ to a single ʃ.
+IT_GEMINABLE = set("bdfɡklmnprtvʒdʣʦʧʤzɲʎ")
 
 
 def convert_it(word: str, ipa: str) -> str:
@@ -211,6 +217,8 @@ def convert_it(word: str, ipa: str) -> str:
         index += 1
     ipa = "".join(result)
 
+    ipa = ipa.replace("ʃʃ", "ʃ")
+
     # Intervocalic single r → tap; double r stays r + tap via gemination
     # exclusion (espeak writes rr as rɾ).
     ipa = ipa.replace("rː", "rɾ")
@@ -235,7 +243,24 @@ def convert_it(word: str, ipa: str) -> str:
         if nuclei:
             target = nuclei[-2] if len(nuclei) >= 2 else nuclei[0]
             ipa = ipa[:target] + "ˈ" + ipa[target:]
-    return ipa
+
+    # Unstressed high vowels lax (abːrʊstolimˈentɪ).
+    result: list[str] = []
+    stressed_next = False
+    for ch in ipa:
+        if ch in STRESS_MARKS:
+            stressed_next = True
+            result.append(ch)
+            continue
+        if not stressed_next and ch == "i":
+            result.append("ɪ")
+        elif not stressed_next and ch == "u":
+            result.append("ʊ")
+        else:
+            result.append(ch)
+        if ch in VOWEL_CHARS["it"]:
+            stressed_next = False
+    return "".join(result)
 
 
 
@@ -317,12 +342,78 @@ def convert_pt(word: str, ipa: str) -> str:
     return ipa
 
 
+
+
+def convert_pt_br(word: str, ipa: str) -> str:
+    """Brazilian Portuguese espeak conventions, calibrated against the
+    pt-br oracle: final -a lowers to æ, final -o/-e raise to ʊ/y, the
+    off-glides of falling diphthongs are written ɪ/ʊ, and word-final r is
+    written rather than dropped (the source transcribes the deleted-r
+    pronunciation)."""
+    ipa = ipa.replace(".", "")
+
+    nuclei = []
+    previous_was_vowel = False
+    for i, ch in enumerate(ipa):
+        is_vowel = ch in VOWEL_CHARS["pt"]
+        if is_vowel and not previous_was_vowel:
+            nuclei.append(i)
+        previous_was_vowel = is_vowel
+    if not nuclei:
+        return ipa
+
+    if "ˈ" not in ipa:
+        accent = next((i for i, ch in enumerate(word) if ch in PT_ACCENTS), None)
+        if accent is not None:
+            fraction = accent / max(1, len(word))
+            target = nuclei[min(int(fraction * len(nuclei)), len(nuclei) - 1)]
+        elif (
+            word.endswith(("a", "e", "o", "as", "es", "os", "am", "em"))
+            and len(nuclei) >= 2
+        ):
+            target = nuclei[-2]
+        else:
+            target = nuclei[-1]
+        ipa = ipa[:target] + "ˈ" + ipa[target:]
+
+    primary = ipa.index("ˈ")
+    if sum(1 for n in nuclei if n < primary) >= 1:
+        first = nuclei[0]
+        ipa = ipa[:first] + "ˌ" + ipa[first:]
+
+    # Falling-diphthong off-glides.
+    result: list[str] = []
+    for ch in ipa:
+        previous = result[-1] if result else ""
+        if ch == "j" and previous in VOWEL_CHARS["pt"]:
+            result.append("ɪ")
+        elif ch in {"w", "u"} and previous in "ao":
+            result.append("ʊ")
+        else:
+            result.append(ch)
+    ipa = "".join(result)
+
+    # Final-vowel quality.
+    if ipa.endswith("a"):
+        ipa = ipa[:-1] + "æ"
+    elif ipa.endswith("o"):
+        ipa = ipa[:-1] + "ʊ"
+    elif ipa.endswith("e"):
+        ipa = ipa[:-1] + "y"
+
+    # Deleted final r is written in the espeak transcription.
+    if word.endswith("r") and not ipa.endswith("r"):
+        ipa += "r"
+    return ipa
+
+
 CONVERTERS = {
     "de": convert_de,
     "es": convert_es,
     "fr": convert_fr,
     "it": convert_it,
     "pt": convert_pt,
+    "pt-br": convert_pt_br,
 }
 
 

@@ -61,6 +61,10 @@ def main() -> int:
     parser.add_argument(
         "--lang", default=None,
         help="apply this language's espeak-convention transforms")
+    parser.add_argument(
+        "--merge", action="append", default=[], metavar="FORMAT:PATH",
+        help="secondary source filling gaps only; the primary source wins "
+             "every conflict so its conventions stay dominant")
     args = parser.parse_args()
 
     parse = parse_ipa_dict if args.format == "ipa-dict" else parse_wikipron
@@ -76,11 +80,31 @@ def main() -> int:
                 conventions.convert(args.lang, word, ipa) if args.lang else ipa
             )
 
+    primary_count = len(entries)
+    for spec in args.merge:
+        fmt, _, path = spec.partition(":")
+        if fmt not in {"ipa-dict", "wikipron"} or not path:
+            raise SystemExit(f"--merge expects FORMAT:PATH, got {spec!r}")
+        merge_parse = parse_ipa_dict if fmt == "ipa-dict" else parse_wikipron
+        for word, ipa in merge_parse(Path(path)):
+            word = word.strip().lower()
+            if not word or not ipa or word in entries:
+                continue
+            if " " in word or any(c.isdigit() for c in word):
+                continue
+            entries[word] = (
+                conventions.convert(args.lang, word, ipa) if args.lang else ipa
+            )
+
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w", encoding="utf-8") as out:
         for word in sorted(entries):
             out.write(f"{word}\t{entries[word]}\n")
-    print(f"imported {len(entries)} entries -> {args.out}")
+    print(
+        f"imported {len(entries)} entries "
+        f"({primary_count} primary, {len(entries) - primary_count} merged) "
+        f"-> {args.out}"
+    )
     return 0
 
 

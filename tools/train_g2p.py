@@ -29,6 +29,7 @@ import json
 import random
 import sys
 import time
+import unicodedata
 from pathlib import Path
 
 import torch
@@ -47,18 +48,41 @@ IPA_MULTI = [
 ]
 
 
+# Modifiers and combining marks bind to the preceding base symbol: length
+# (ː), palatalization (ʲ), nasalization (◌̃), and similar. Stress marks are
+# their own tokens because they precede their vowel.
+STRESS_TOKENS = {"\u02c8", "\u02cc"}
+
+
+def _is_modifier(ch: str) -> bool:
+    if ch in STRESS_TOKENS:
+        return False
+    return unicodedata.category(ch) in {"Mn", "Lm", "Sk"}
+
+
 def tokenize_ipa(ipa: str) -> list[str]:
+    """Splits an IPA string into model tokens.
+
+    Multi-letter units (diphthongs, affricates) come from IPA_MULTI; every
+    other base symbol absorbs the modifiers and combining marks that follow
+    it, so ʃː, ɭʲ, ɐ̃, and ɔ̃ stay single tokens instead of fragmenting into
+    pieces the decoder would have to re-assemble.
+    """
     tokens: list[str] = []
     index = 0
     while index < len(ipa):
+        matched = None
         for multi in IPA_MULTI:
             if ipa.startswith(multi, index):
-                tokens.append(multi)
-                index += len(multi)
+                matched = multi
                 break
-        else:
-            tokens.append(ipa[index])
+        if matched is None:
+            matched = ipa[index]
+        index += len(matched)
+        while index < len(ipa) and _is_modifier(ipa[index]):
+            matched += ipa[index]
             index += 1
+        tokens.append(matched)
     return tokens
 
 

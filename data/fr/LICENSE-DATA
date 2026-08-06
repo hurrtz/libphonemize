@@ -1,3 +1,6 @@
 Source: open-dict-data/ipa-dict (data/fr_FR.txt)
 License: MIT (repository license)
 Retrieved: 2026-08-06
+
+Secondary merge source (gap-fill only, primary source wins conflicts):
+  CUNY-CL WikiPron fra_latn_broad.tsv — CC BY-SA 3.0
