@@ -59,7 +59,7 @@ if(PHONEMIZE_BUILD_TESTS)
   # dictionary choices diverging from CMUdict pronunciations, not by
   # notation. Raise the floor as calibration improves; never lower it.
   # Floors reflect current calibration per language; raise only.
-  foreach(pair "en-us;40" "es;65" "fr;38" "ru;35" "de;25" "it;22" "pt;12" "pt-br;12")
+  foreach(pair "en-us;40" "es;65" "fr;38" "ru;35" "de;34" "it;26" "pt;17" "pt-br;12")
     list(GET pair 0 lang)
     list(GET pair 1 floor)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/golden/${lang}.tsv

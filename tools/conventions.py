@@ -8,6 +8,8 @@ actual pronunciation, the source wins and the fixture diff documents it.
 
 from __future__ import annotations
 
+import re
+
 # Vowel *starting* characters per language IPA, used to find the stressed
 # vowel a mark should attach to. Length marks/diacritics follow the vowel.
 VOWEL_CHARS = {
@@ -64,6 +66,8 @@ def convert_de(word: str, ipa: str) -> str:
     ipa = ipa.replace("ɐ̯", "ɾ")
     ipa = ipa.replace("ʁ", "ɾ")
     ipa = ipa.replace("ɐ", "ɜ")
+    # -igst-/-igs- keeps the ç of -ig (ˈafɪçstəs).
+    ipa = re.sub(r"ɪk(?=s)", "ɪç", ipa)
     for dropped in ("ʔ", "͡", "̯"):
         ipa = ipa.replace(dropped, "")
     ipa = move_stress_before_vowel(ipa, VOWEL_CHARS["de"])
@@ -71,8 +75,38 @@ def convert_de(word: str, ipa: str) -> str:
 
     # Note: espeak's German secondary stress follows its own compound
     # analysis; a blanket leading-ˌ rule measured worse (27.6% -> 19.6%) and
-    # is deliberately not applied.
+    # is deliberately not applied. These rules run last because they are
+    # position-sensitive and the token order is only final here.
+    ipa = apply_de_rhotics(ipa)
+    # The separable "zu" infix carries a long vowel (ˈaptsuːzɛndəndəm).
+    ipa = re.sub(r"(?<=ts)u(?!ː)", "uː", ipa)
+    # "durch" keeps the open central vocalic r rather than the mid one.
+    ipa = ipa.replace("ʊɜç", "ʊɐç")
+    # Derivational suffixes carry secondary stress (bɛtlərˌɪn, ɡruːzəlˌɪçstən).
+    ipa = re.sub(r"(?<=r)ɪn\b", "ˌɪn", ipa)
+    ipa = re.sub(r"(?<=l)ɪç", "ˌɪç", ipa)
     return ipa
+
+
+DE_PLOSIVES = set("pbtdkɡ")
+
+
+def apply_de_rhotics(ipa: str) -> str:
+    """espeak writes the German r as a trill in a simple onset and as a tap
+    after a plosive or in a coda (ˈbeːɾə vs ˈapdɾʊkəst). Mined from oracle
+    behaviour over 3,000 words, where ɾ->r accounted for the largest single
+    cluster of differences."""
+    chars = list(ipa)
+    for index, ch in enumerate(chars):
+        if ch != "ɾ":
+            continue
+        following = chars[index + 1] if index + 1 < len(chars) else ""
+        previous = chars[index - 1] if index > 0 else "^"
+        onset = following in VOWEL_CHARS["de"] or following in STRESS_MARKS
+        after_plosive = previous in DE_PLOSIVES
+        if onset and not after_plosive:
+            chars[index] = "r"
+    return "".join(chars)
 
 
 ES_STRONG = set("aeo")
@@ -244,6 +278,13 @@ def convert_it(word: str, ipa: str) -> str:
             target = nuclei[-2] if len(nuclei) >= 2 else nuclei[0]
             ipa = ipa[:target] + "ˈ" + ipa[target:]
 
+    # Intervocalic r is a trill in espeak's Italian, not a tap; the earlier
+    # tap rule was the single largest mined divergence.
+    ipa = apply_it_rhotics(ipa)
+    # Word-initial i keeps its tense quality (inalberˈare).
+    ipa = re.sub(r"^ɪ", "i", ipa)
+    ipa = re.sub(r"(?<=[ˈˌ])ɪ", "i", ipa)
+
     # Unstressed high vowels lax (abːrʊstolimˈentɪ).
     result: list[str] = []
     stressed_next = False
@@ -263,6 +304,12 @@ def convert_it(word: str, ipa: str) -> str:
     return "".join(result)
 
 
+
+
+def apply_it_rhotics(ipa: str) -> str:
+    """espeak's Italian writes r as a trill between vowels; our earlier tap
+    conversion was mined as the largest single source of divergence."""
+    return ipa.replace("ɾ", "r")
 
 
 PT_ACCENTS = set("áéíóúâêôàãõ")
@@ -330,6 +377,14 @@ def convert_pt(word: str, ipa: str) -> str:
             if following not in VOWEL_CHARS["pt"] and following != "̃":
                 result.append("ŋ")
     ipa = "".join(result)
+
+    # Final r is an approximant in espeak's Portuguese (ˌabobɐdˈaɹ).
+    if ipa.endswith("ɾ"):
+        ipa = ipa[:-1] + "ɹ"
+    # Nasal diphthong notation: ɐ̃w̃ is written ɐ̃ʊ̃.
+    ipa = ipa.replace("ɐ̃ŋw̃", "ɐ̃ʊ̃").replace("ɐ̃w̃", "ɐ̃ʊ̃")
+    # ei is written as a diphthong with a lax off-glide.
+    ipa = ipa.replace("ej", "eɪ")
 
     # Lax final high vowels (also before final ʃ/s).
     if ipa.endswith("u"):
