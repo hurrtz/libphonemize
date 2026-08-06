@@ -38,7 +38,7 @@ CONSONANT_IPA = {
     "б": "b", "в": "v", "г": "ɡ", "д": "d", "ж": "ʒ", "з": "z",
     "й": "j", "к": "k", "л": "ɭ", "м": "m", "н": "n", "п": "p",
     "р": "r", "с": "s", "т": "t", "ф": "f", "х": "x", "ц": "ts",
-    "ч": "tʃ", "ш": "ʃ", "щ": "ʃː",
+    "ч": "tʃʲ", "ш": "ʃ", "щ": "ʃː",
 }
 
 STRESSED_VOWEL_IPA = {"а": "ɑ", "е": "e", "ё": "o", "и": "i", "о": "o",
@@ -127,9 +127,12 @@ def convert_ru(accented: str) -> str | None:
             # Post-tonic я keeps a-quality (ja); pre-tonic reduces to i.
             if ch == "я" and not stressed and index > stressed_vowel_index:
                 ipa = "a"
-            # Final unstressed и/е lax slightly.
+            # Final unstressed и/е lax, except after a palatalized
+            # consonant where the front quality survives (blɐɡovolʲˈitʲi).
             if not stressed and index == len(letters) - 1 and ch in "ие":
-                ipa = "ɪ"
+                after_soft = previous in SOFTENING or previous == "ь" or (
+                    out and out[-1].endswith("ʲ"))
+                ipa = "i" if after_soft else "ɪ"
             iotated = ch in "еёюя"
             needs_j = iotated and (
                 previous is None or previous in VOWELS or previous in "ьъ")
@@ -153,7 +156,11 @@ def convert_ru(accented: str) -> str | None:
             following in SOFTENING or following == "ь")
         out.append(ipa + ("ʲ" if softened else ""))
 
-    return "".join(out)
+    result = "".join(out)
+    # The reflexive -ся/-сь ending reduces to sʌ.
+    if result.endswith("sʲa"):
+        result = result[:-3] + "sʌ"
+    return result
 
 
 def collect_forms(src_dir: Path):

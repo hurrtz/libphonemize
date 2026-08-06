@@ -15,9 +15,9 @@ import re
 VOWEL_CHARS = {
     "de": set("aɑeɛɪioɔuʊøœyʏəɐɜãõ"),
     "es": set("aeiou"),
-    "fr": set("aɑeɛəioɔuœøyɛ̃ãɔ̃œ̃"),
+    "fr": set("aɑeɛəioɔuœøy"),
     "it": set("aeɛioɔu"),
-    "pt": set("aɐeɛəioɔuɨũĩõẽɔ̃ɐ̃"),
+    "pt": set("aɐeɛəioɔuɨ"),
     "ru": set("aeioumɵʉɨæɐəɛʊɪ"),
 }
 
@@ -84,7 +84,8 @@ def convert_de(word: str, ipa: str) -> str:
     ipa = ipa.replace("ʊɜç", "ʊɐç")
     # Derivational suffixes carry secondary stress (bɛtlərˌɪn, ɡruːzəlˌɪçstən).
     ipa = re.sub(r"(?<=r)ɪn\b", "ˌɪn", ipa)
-    ipa = re.sub(r"(?<=l)ɪç", "ˌɪç", ipa)
+    ipa = re.sub(r"(?<=ˈ)ɑː(?=x)", "a", ipa)
+    ipa = re.sub(r"ɛɾ(?=ɾ)", "ɜ", ipa)
     return ipa
 
 
@@ -154,7 +155,7 @@ def convert_es(word: str, ipa: str) -> str:
             insert = spanish_syllable_vowel_indices(bare)[0]
             if insert < primary_at:
                 ipa = bare[:insert] + "ˌ" + bare[insert:primary_at] + "ˈ" + bare[primary_at:]
-        return apply_es_diphthongs(ipa)
+        return apply_es_conventions(ipa)
 
     nuclei = spanish_syllable_vowel_indices(ipa)
     if not nuclei:
@@ -187,13 +188,27 @@ def convert_es(word: str, ipa: str) -> str:
         first = nuclei[0]
         out = out[:first] + "ˌ" + out[first:]
 
-    return apply_es_diphthongs(out)
+    return apply_es_conventions(out)
+
+
+def apply_es_conventions(ipa: str) -> str:
+    """Spanish notation: no phonemic z, no velar assimilation before k, a
+    final stop rather than a fricative, and the IPA script g."""
+    ipa = ipa.replace("z", "s").replace("ŋ", "n").replace("g", "ɡ")
+    if ipa.endswith("ð"):
+        ipa = ipa[:-1] + "d"
+    return apply_es_diphthongs(ipa)
 
 
 def apply_es_diphthongs(ipa: str) -> str:
     # Falling diphthongs: weak i/u after a strong vowel → ɪ/ʊ.
     result: list[str] = []
-    for ch in ipa:
+    for index, ch in enumerate(ipa):
+        following = ipa[index + 1] if index + 1 < len(ipa) else ""
+        # Verb endings keep the tense off-glide (akonsonantˈais).
+        if following == "s":
+            result.append(ch)
+            continue
         if ch == "i" and result and result[-1] in ES_STRONG:
             result.append("ɪ")
         elif ch == "u" and result and result[-1] in ES_STRONG:
@@ -206,9 +221,12 @@ def apply_es_diphthongs(ipa: str) -> str:
 
 
 def convert_fr(word: str, ipa: str) -> str:
-    """French espeak convention: fixed final stress — ˈ before the last
-    vowel nucleus (nasal vowels included via their base character)."""
+    """French espeak conventions: fixed final stress before the last vowel
+    (its combining nasal mark stays attached), a long vowel under the
+    circumflex forms, and the mute e dropped before r."""
     ipa = ipa.replace(".", "")
+    # Mute e before r in future/conditional forms (alɛtʁˈɔ̃).
+    ipa = re.sub(r"ə(?=ʁ)", "", ipa)
     last_vowel = None
     for index, ch in enumerate(ipa):
         if ch in VOWEL_CHARS["fr"]:
@@ -217,6 +235,9 @@ def convert_fr(word: str, ipa: str) -> str:
             last_vowel = index
     if last_vowel is not None and "ˈ" not in ipa:
         ipa = ipa[:last_vowel] + "ˈ" + ipa[last_vowel:]
+    # Circumflex past forms carry a long vowel (abɛjˈaːm).
+    if "â" in word or "î" in word or "û" in word:
+        ipa = re.sub(r"(?<=ˈ)([aiu])", r"\1ː", ipa)
     return ipa
 
 
@@ -275,7 +296,16 @@ def convert_it(word: str, ipa: str) -> str:
                 nuclei.append(i)
             previous_was_vowel = is_vowel and ch not in "jw"
         if nuclei:
-            target = nuclei[-2] if len(nuclei) >= 2 else nuclei[0]
+            if word and word[-1] in "àèéìòù":
+                target = nuclei[-1]  # written accent marks final stress
+            elif word.endswith(("bile", "bili", "ica", "ico", "iche", "ici",
+                                "ile", "tino", "tina")):
+                # Sdrucciole: these suffixes take antepenultimate stress.
+                target = nuclei[-3] if len(nuclei) >= 3 else nuclei[0]
+            elif len(nuclei) >= 2:
+                target = nuclei[-2]
+            else:
+                target = nuclei[0]
             ipa = ipa[:target] + "ˈ" + ipa[target:]
 
     # Intervocalic r is a trill in espeak's Italian, not a tap; the earlier
@@ -293,7 +323,7 @@ def convert_it(word: str, ipa: str) -> str:
             stressed_next = True
             result.append(ch)
             continue
-        if not stressed_next and ch == "i":
+        if not stressed_next and ch == "i" and ch == ipa[-1]:
             result.append("ɪ")
         elif not stressed_next and ch == "u":
             result.append("ʊ")
@@ -378,6 +408,13 @@ def convert_pt(word: str, ipa: str) -> str:
                 result.append("ŋ")
     ipa = "".join(result)
 
+    # A supporting schwa surfaces in an r-cluster coda (ˌabuɾətˈiʒmʊ).
+    ipa = re.sub(r"ɾ(?=[bcdfɡklmnpstvzʃʒ])", "ɾə", ipa)
+    # Nasal-diphthong notation.
+    ipa = ipa.replace("ɐ̃ŋw̃", "ɐ̃ʊ̃").replace("ɐ̃w̃", "ɐ̃ʊ̃")
+    # Stressed a before l is the back vowel.
+    ipa = re.sub(r"(?<=[ˈˌ])a(?=l)", "ɑ", ipa)
+
     # Final r is an approximant in espeak's Portuguese (ˌabobɐdˈaɹ).
     if ipa.endswith("ɾ"):
         ipa = ipa[:-1] + "ɹ"
@@ -448,8 +485,18 @@ def convert_pt_br(word: str, ipa: str) -> str:
             result.append(ch)
     ipa = "".join(result)
 
-    # Final-vowel quality.
-    if ipa.endswith("a"):
+    # espeak's Brazilian notation, mined from the oracle: the trill is
+    # written as a velar fricative, nasal diphthongs use ʊ̃, and the
+    # palatalized t of -nte/-te is written as an affricate.
+    ipa = ipa.replace("t͡ʃ", "tʃ").replace("d͡ʒ", "dʒ")
+    ipa = re.sub(r"^ʁ", "x", ipa)
+    ipa = ipa.replace("ɐ̃w̃", "ɐ̃ʊ̃").replace("ɐ̃ŋw̃", "ɐ̃ʊ̃")
+    ipa = ipa.replace("ẽt", "eɪŋtʃ")
+    ipa = ipa.replace("ɻ", "")
+
+    # Final-vowel quality: unstressed only — a stressed final a stays open
+    # (ˌaselaɾˈar).
+    if ipa.endswith("a") and not ipa.endswith("ˈa"):
         ipa = ipa[:-1] + "æ"
     elif ipa.endswith("o"):
         ipa = ipa[:-1] + "ʊ"

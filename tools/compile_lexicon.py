@@ -82,6 +82,10 @@ def apply_espeak_en_conventions(tokens: list) -> str:
         next_entry = tokens[index + 1] if index + 1 < len(tokens) else None
 
         if is_vowel:
+            # CMUdict writes both STRUT and schwa as AH; stress tells them
+            # apart, and espeak agrees: "come" is kʌm, not kəm.
+            if bare == "AH" and stress:
+                ipa = "ʌ"
             if ipa in {"ə", "æ"} and not stress and index == 0:
                 ipa = "ɐ"
             if ipa == "ɚ" and stress:
@@ -105,6 +109,10 @@ def apply_espeak_en_conventions(tokens: list) -> str:
                 ipa = "ᵻ"
             result.append(stress + ipa)
             continue
+
+        # Nasal assimilation before a velar (ɪŋklˈuːdɪŋ).
+        if bare == "N" and next_entry is not None and next_entry[2] in {"K", "G"}:
+            ipa = "ŋ"
 
         # Flap: t between a vowel and an unstressed vowel.
         if (
