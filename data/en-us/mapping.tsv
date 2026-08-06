@@ -1,0 +1,44 @@
+# ARPABET → espeak-compatible IPA (en-US)
+# Starting point uses the standard ARPABET/IPA correspondence; the authoritative
+# calibration is tests/golden/en-us.tsv — where espeak's en-us conventions
+# differ (e.g. r-colored vowels, flapping, ɐ usage), the fixtures win and this
+# table gets adjusted. Apache-2.0, authored for this project.
+AA	ɑː
+AE	æ
+AH	ə
+AO	ɔː
+AW	aʊ
+AY	aɪ
+B	b
+CH	tʃ
+D	d
+DH	ð
+EH	ɛ
+ER	ɚ
+EY	eɪ
+F	f
+G	ɡ
+HH	h
+IH	ɪ
+IY	iː
+JH	dʒ
+K	k
+L	l
+M	m
+N	n
+NG	ŋ
+OW	oʊ
+OY	ɔɪ
+P	p
+R	ɹ
+S	s
+SH	ʃ
+T	t
+TH	θ
+UH	ʊ
+UW	uː
+V	v
+W	w
+Y	j
+Z	z
+ZH	ʒ
