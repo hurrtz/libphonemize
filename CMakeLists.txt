@@ -46,10 +46,15 @@ if(PHONEMIZE_BUILD_TESTS)
   # deliberately strict proxy: the residual gap is dominated by espeak's own
   # dictionary choices diverging from CMUdict pronunciations, not by
   # notation. Raise the floor as calibration improves; never lower it.
-  if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/golden/en-us.tsv
-     AND EXISTS ${CMAKE_CURRENT_BINARY_DIR}/data/en-us.lpk)
-    add_test(NAME golden-en-us
-      COMMAND phonemize_golden_test ${CMAKE_CURRENT_BINARY_DIR}/data en-us
-              ${CMAKE_CURRENT_SOURCE_DIR}/tests/golden/en-us.tsv 40)
-  endif()
+  # Floors reflect current calibration per language; raise only.
+  foreach(pair "en-us;40" "es;65" "fr;38" "de;25" "it;18")
+    list(GET pair 0 lang)
+    list(GET pair 1 floor)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/golden/${lang}.tsv
+       AND EXISTS ${CMAKE_CURRENT_BINARY_DIR}/data/${lang}.lpk)
+      add_test(NAME golden-${lang}
+        COMMAND phonemize_golden_test ${CMAKE_CURRENT_BINARY_DIR}/data ${lang}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/golden/${lang}.tsv ${floor})
+    endif()
+  endforeach()
 endif()

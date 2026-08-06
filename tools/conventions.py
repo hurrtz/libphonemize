@@ -165,9 +165,84 @@ def apply_es_diphthongs(ipa: str) -> str:
     return "".join(result)
 
 
+
+
+def convert_fr(word: str, ipa: str) -> str:
+    """French espeak convention: fixed final stress — ˈ before the last
+    vowel nucleus (nasal vowels included via their base character)."""
+    ipa = ipa.replace(".", "")
+    last_vowel = None
+    for index, ch in enumerate(ipa):
+        if ch in VOWEL_CHARS["fr"]:
+            if index > 0 and ipa[index - 1] in STRESS_MARKS:
+                continue
+            last_vowel = index
+    if last_vowel is not None and "ˈ" not in ipa:
+        ipa = ipa[:last_vowel] + "ˈ" + ipa[last_vowel:]
+    return ipa
+
+
+IT_GEMINABLE = set("bdfɡklmnprstvʃtʒdʣʦʧʤzɲʎ")
+
+
+def convert_it(word: str, ipa: str) -> str:
+    """Italian espeak conventions: geminates written with a length mark
+    (bb → bː, ttʃ → tʃː), tie bars dropped, intervocalic single r as a tap,
+    default penultimate stress before the vowel."""
+    ipa = ipa.replace(".", "").replace("͡", "")
+
+    # Geminates → length mark. Affricates first (ttʃ → tʃː, ddʒ → dʒː).
+    for affricate in ("tʃ", "dʒ", "ts", "dz"):
+        ipa = ipa.replace(affricate[0] + affricate, affricate + "ː")
+    result: list[str] = []
+    index = 0
+    while index < len(ipa):
+        ch = ipa[index]
+        if (
+            ch in IT_GEMINABLE
+            and index + 1 < len(ipa)
+            and ipa[index + 1] == ch
+        ):
+            result.append(ch)
+            result.append("ː")
+            index += 2
+            continue
+        result.append(ch)
+        index += 1
+    ipa = "".join(result)
+
+    # Intervocalic single r → tap; double r stays r + tap via gemination
+    # exclusion (espeak writes rr as rɾ).
+    ipa = ipa.replace("rː", "rɾ")
+    chars = list(ipa)
+    for i, ch in enumerate(chars):
+        if ch != "r":
+            continue
+        prev_ok = i > 0 and chars[i - 1] in VOWEL_CHARS["it"]
+        next_ok = i + 1 < len(chars) and chars[i + 1] in VOWEL_CHARS["it"]
+        if prev_ok and next_ok:
+            chars[i] = "ɾ"
+    ipa = "".join(chars)
+
+    if "ˈ" not in ipa:
+        nuclei = []
+        previous_was_vowel = False
+        for i, ch in enumerate(ipa):
+            is_vowel = ch in VOWEL_CHARS["it"]
+            if is_vowel and not previous_was_vowel:
+                nuclei.append(i)
+            previous_was_vowel = is_vowel and ch not in "jw"
+        if nuclei:
+            target = nuclei[-2] if len(nuclei) >= 2 else nuclei[0]
+            ipa = ipa[:target] + "ˈ" + ipa[target:]
+    return ipa
+
+
 CONVERTERS = {
     "de": convert_de,
     "es": convert_es,
+    "fr": convert_fr,
+    "it": convert_it,
 }
 
 
