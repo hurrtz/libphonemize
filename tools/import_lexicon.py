@@ -25,6 +25,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import conventions
+
 
 def clean_ipa(value: str) -> str:
     value = value.strip()
@@ -56,6 +58,9 @@ def main() -> int:
                         choices=["ipa-dict", "wikipron"])
     parser.add_argument("--in", dest="input", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
+    parser.add_argument(
+        "--lang", default=None,
+        help="apply this language's espeak-convention transforms")
     args = parser.parse_args()
 
     parse = parse_ipa_dict if args.format == "ipa-dict" else parse_wikipron
@@ -67,7 +72,9 @@ def main() -> int:
         if " " in word or any(c.isdigit() for c in word):
             continue
         if word not in entries:  # first variant wins
-            entries[word] = ipa
+            entries[word] = (
+                conventions.convert(args.lang, word, ipa) if args.lang else ipa
+            )
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w", encoding="utf-8") as out:
