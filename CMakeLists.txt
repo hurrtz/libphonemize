@@ -23,8 +23,20 @@ target_link_libraries(phonemize-pack PRIVATE phonemize)
 target_include_directories(phonemize-pack PRIVATE src)
 
 if(PHONEMIZE_ENABLE_ONNX)
-  find_package(onnxruntime REQUIRED)
-  target_link_libraries(phonemize PRIVATE onnxruntime::onnxruntime)
+  find_path(ONNXRUNTIME_INCLUDE_DIR onnxruntime_cxx_api.h
+    HINTS ${ONNXRUNTIME_ROOT}/include
+          /opt/homebrew/opt/onnxruntime/include/onnxruntime/core/session
+          /opt/homebrew/opt/onnxruntime/include/onnxruntime
+          /usr/local/include/onnxruntime)
+  find_library(ONNXRUNTIME_LIBRARY onnxruntime
+    HINTS ${ONNXRUNTIME_ROOT}/lib /opt/homebrew/opt/onnxruntime/lib
+          /usr/local/lib)
+  if(NOT ONNXRUNTIME_INCLUDE_DIR OR NOT ONNXRUNTIME_LIBRARY)
+    message(FATAL_ERROR "PHONEMIZE_ENABLE_ONNX=ON but onnxruntime was not found; set ONNXRUNTIME_ROOT")
+  endif()
+  target_sources(phonemize PRIVATE src/neural_g2p.cc)
+  target_include_directories(phonemize PRIVATE ${ONNXRUNTIME_INCLUDE_DIR})
+  target_link_libraries(phonemize PRIVATE ${ONNXRUNTIME_LIBRARY})
   target_compile_definitions(phonemize PRIVATE PHONEMIZE_HAVE_ONNX=1)
 endif()
 
@@ -57,4 +69,15 @@ if(PHONEMIZE_BUILD_TESTS)
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/golden/${lang}.tsv ${floor})
     endif()
   endforeach()
+
+  if(PHONEMIZE_ENABLE_ONNX)
+    add_executable(phonemize_neural_test tests/neural_test.cc)
+    target_link_libraries(phonemize_neural_test PRIVATE phonemize
+      ${ONNXRUNTIME_LIBRARY})
+    target_include_directories(phonemize_neural_test PRIVATE src)
+    if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/data/en-us.g2p/g2p_vocab.json)
+      add_test(NAME neural-en-us
+        COMMAND phonemize_neural_test ${CMAKE_CURRENT_BINARY_DIR}/data)
+    endif()
+  endif()
 endif()

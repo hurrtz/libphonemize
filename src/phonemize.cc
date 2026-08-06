@@ -17,6 +17,10 @@
 
 #include "lexicon_pack.h"
 
+#if defined(PHONEMIZE_HAVE_ONNX)
+#include "neural_g2p.h"
+#endif
+
 namespace {
 
 struct ContextImpl {
@@ -24,6 +28,9 @@ struct ContextImpl {
   std::string language;
   uint32_t layers = PHONEMIZE_LAYERS_ALL;
   libphonemize::LexiconPack lexicon;
+#if defined(PHONEMIZE_HAVE_ONNX)
+  libphonemize::NeuralG2P neural;
+#endif
 };
 
 phonemize_status set_status(phonemize_status* out, phonemize_status value) {
@@ -102,6 +109,14 @@ phonemize_context* phonemize_create(const phonemize_config* config,
     }
   }
 
+#if defined(PHONEMIZE_HAVE_ONNX)
+  if (context->impl.layers & PHONEMIZE_LAYER_NEURAL) {
+    // Optional: absent models degrade to lexicon/rules per the SPEC.
+    context->impl.neural.Load(context->impl.data_dir + "/" +
+                              context->impl.language + ".g2p");
+  }
+#endif
+
   set_status(status, PHONEMIZE_OK);
   return context.release();
 }
@@ -123,19 +138,29 @@ phonemize_status phonemize_text(phonemize_context* context,
   bool unresolved = false;
 
   for (const std::string& token : tokens) {
-    const char* ipa = nullptr;
+    const std::string lowered = AsciiLower(token);
+    std::string resolved;
     if (context->impl.layers & PHONEMIZE_LAYER_LEXICON) {
-      ipa = context->impl.lexicon.Find(AsciiLower(token));
+      if (const char* ipa = context->impl.lexicon.Find(lowered)) {
+        resolved = ipa;
+      }
     }
-    // Rule and neural layers resolve here in M3/M2 respectively.
-    if (ipa == nullptr) {
+#if defined(PHONEMIZE_HAVE_ONNX)
+    if (resolved.empty() &&
+        (context->impl.layers & PHONEMIZE_LAYER_NEURAL) &&
+        context->impl.neural.loaded()) {
+      resolved = context->impl.neural.Phonemize(lowered);
+    }
+#endif
+    // The rule layer resolves here in M3.
+    if (resolved.empty()) {
       unresolved = true;
       continue;
     }
     if (!output.empty()) {
       output.push_back(' ');
     }
-    output.append(ipa);
+    output.append(resolved);
   }
 
   char* buffer = static_cast<char*>(std::malloc(output.size() + 1));

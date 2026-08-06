@@ -238,11 +238,91 @@ def convert_it(word: str, ipa: str) -> str:
     return ipa
 
 
+
+
+PT_ACCENTS = set("áéíóúâêôàãõ")
+
+
+def convert_pt(word: str, ipa: str) -> str:
+    """European Portuguese espeak conventions: orthography-derived stress
+    (accents win; -a/-e/-o/-am/-em/-as/-es/-os endings stress the penult,
+    otherwise the ultima), a leading secondary stress on pretonic words, a
+    velar nasal written after nasal vowels before a consonant, and lax
+    final high vowels (u → ʊ, i → ɪ)."""
+    ipa = ipa.replace(".", "")
+
+    nuclei = []
+    previous_was_vowel = False
+    for i, ch in enumerate(ipa):
+        is_vowel = ch in VOWEL_CHARS["pt"]
+        if is_vowel and not previous_was_vowel:
+            nuclei.append(i)
+        previous_was_vowel = is_vowel
+    if not nuclei:
+        return ipa
+
+    if "ˈ" not in ipa:
+        accent = next((i for i, ch in enumerate(word) if ch in PT_ACCENTS), None)
+        if accent is not None:
+            fraction = accent / max(1, len(word))
+            target = nuclei[min(int(fraction * len(nuclei)), len(nuclei) - 1)]
+        elif (
+            word.endswith(("a", "e", "o", "as", "es", "os", "am", "em"))
+            and len(nuclei) >= 2
+        ):
+            target = nuclei[-2]
+        else:
+            target = nuclei[-1]
+        ipa = ipa[:target] + "ˈ" + ipa[target:]
+
+    primary = ipa.index("ˈ")
+    pretonic = sum(1 for n in nuclei if n < primary)
+    if pretonic >= 1:
+        first = nuclei[0]
+        ipa = ipa[:first] + "ˌ" + ipa[first:]
+
+    # espeak writes the nasal e as a diphthong before a consonant.
+    out = []
+    i = 0
+    while i < len(ipa):
+        if ipa.startswith("ẽ", i) or ipa.startswith("ẽ", i):
+            after = ipa[i + len("ẽ"):] if ipa.startswith("ẽ", i) else ipa[i + 1:]
+            nxt = after[:1]
+            if nxt and nxt not in VOWEL_CHARS["pt"] and nxt not in STRESS_MARKS:
+                out.append("eɪŋ")
+                i += len("ẽ") if ipa.startswith("ẽ", i) else 1
+                continue
+        out.append(ipa[i])
+        i += 1
+    ipa = "".join(out)
+
+    # Velar nasal after a nasal vowel that precedes a consonant.
+    result = []
+    for i, ch in enumerate(ipa):
+        result.append(ch)
+        if ch == "̃" and i + 1 < len(ipa):
+            following = ipa[i + 1]
+            if following not in VOWEL_CHARS["pt"] and following != "̃":
+                result.append("ŋ")
+    ipa = "".join(result)
+
+    # Lax final high vowels (also before final ʃ/s).
+    if ipa.endswith("u"):
+        ipa = ipa[:-1] + "ʊ"
+    elif ipa.endswith("i"):
+        ipa = ipa[:-1] + "ɪ"
+    for suffix, lax in (("uʃ", "ʊʃ"), ("iʃ", "ɪʃ"), ("us", "ʊs"), ("is", "ɪs")):
+        if ipa.endswith(suffix):
+            ipa = ipa[: -len(suffix)] + lax
+    return ipa
+
+
 CONVERTERS = {
     "de": convert_de,
     "es": convert_es,
     "fr": convert_fr,
     "it": convert_it,
+    "pt": convert_pt,
 }
 
 

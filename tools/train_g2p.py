@@ -189,6 +189,7 @@ def export_onnx(encoder, decoder, in_vocab, out_vocab, hidden, out_dir):
         dynamic_axes={"ids": {1: "src_len"},
                       "encoder_outputs": {1: "src_len"}},
         opset_version=17,
+        dynamo=False,
     )
 
     encoder_outputs, h, c = encoder_cpu(ids)
@@ -214,6 +215,7 @@ def export_onnx(encoder, decoder, in_vocab, out_vocab, hidden, out_dir):
         dynamic_axes={"encoder_outputs": {1: "src_len"},
                       "encoder_mask": {1: "src_len"}},
         opset_version=17,
+        dynamo=False,
     )
 
     (out_dir / "g2p_vocab.json").write_text(
@@ -241,6 +243,8 @@ def main() -> int:
     parser.add_argument("--batch", type=int, default=256)
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--eval-sample", type=int, default=2000)
+    parser.add_argument("--export-only", action="store_true",
+                        help="load the checkpoint from --out and re-export")
     args = parser.parse_args()
 
     device = (
@@ -260,6 +264,17 @@ def main() -> int:
 
     encoder = Encoder(len(in_vocab), args.emb, args.hidden).to(device)
     decoder = DecoderStep(len(out_vocab), args.emb, args.hidden).to(device)
+
+    if args.export_only:
+        state = torch.load(args.out / "g2p_checkpoint.pt",
+                           map_location="cpu")
+        encoder.load_state_dict(state["encoder"])
+        decoder.load_state_dict(state["decoder"])
+        export_onnx(encoder.to("cpu"), decoder.to("cpu"), in_vocab,
+                    out_vocab, args.hidden, args.out)
+        print(f"re-exported ONNX -> {args.out}")
+        return 0
+
     params = list(encoder.parameters()) + list(decoder.parameters())
     optimizer = torch.optim.Adam(params, lr=1e-3)
 
