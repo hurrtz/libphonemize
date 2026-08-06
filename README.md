@@ -53,14 +53,19 @@ out-of-vocabulary names and brands are handled.
 
 | Language | Lexicon source | Entries | Oracle exact | G2P dev exact |
 | --- | --- | ---: | ---: | ---: |
-| Spanish | ipa-dict | 595,896 | 70.4% | 97.8% |
-| English (en-US) | CMUdict | 126,052 | 43.1% | 44.4% |
-| French | ipa-dict + WikiPron | 275,005 | 42.1% | 88.6% |
-| Russian | openrussian (rule G2P) | 535,920 | 39.6% | 74.2% |
-| German | ipa-dict + WikiPron | 706,730 | 27.6% | 67.3% |
-| Italian | WikiPron | 81,441 | 23.2% | 77.2% |
-| Portuguese (pt-PT) | WikiPron | 56,305 | 15.2% | 64.1% |
-| Portuguese (pt-BR) | WikiPron | 57,211 | 15.0% | 81.8% |
+| Spanish | ipa-dict | 595,896 | 71.3% | 97.8% |
+| French | ipa-dict + WikiPron | 275,005 | 59.3% | 88.6% |
+| Italian | WikiPron | 81,441 | 47.1% | 83.9% |
+| English (en-US) | CMUdict | 126,052 | 46.5% | 44.4% |
+| Russian | openrussian (rule G2P) | 535,920 | 45.0% | 74.2% |
+| German | ipa-dict + WikiPron | 706,730 | 37.7% | 67.3% |
+| Portuguese (pt-BR) | WikiPron | 57,211 | 21.8% | 62.9% |
+| Portuguese (pt-PT) | WikiPron | 56,305 | 21.6% | 63.3% |
+
+Conventions are derived by `tools/mine_conventions.py`, which aligns our
+output against the reference over thousands of words and ranks candidate
+rules by fixes minus collateral breakage. It reports aggregate rule
+candidates only; the rules are then written here in our own code.
 
 ## Layout
 
